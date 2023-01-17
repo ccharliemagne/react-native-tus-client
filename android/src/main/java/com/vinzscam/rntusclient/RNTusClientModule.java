@@ -1,7 +1,9 @@
 package com.vinzscam.rntusclient;
 
+import android.content.ContentResolver;
 import android.content.SharedPreferences;
 import android.net.Uri;
+import android.util.Log;
 
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.ReactApplicationContext;
@@ -16,6 +18,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.MalformedURLException;
+import java.net.URI;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
@@ -34,11 +37,12 @@ import io.tus.android.client.TusAndroidUpload;
 import io.tus.java.client.ProtocolException;
 import io.tus.java.client.TusClient;
 import io.tus.java.client.TusExecutor;
+import io.tus.java.client.TusUpload;
 import io.tus.java.client.TusUploader;
 import android.util.Log;
 
 public class RNTusClientModule extends ReactContextBaseJavaModule {
-  private static final String TAG = "RNTUS";
+  private static final String TAG = "RNTusClient";
 
   private final String ON_ERROR = "onError";
   private final String ON_SUCCESS = "onSuccess";
@@ -114,7 +118,7 @@ public class RNTusClientModule extends ReactContextBaseJavaModule {
   }
 
   class TusRunnable extends TusExecutor implements Runnable {
-    private TusAndroidUpload upload;
+    private TusUpload upload;
     private TusUploader uploader;
     private String uploadId;
     private String uploadEndPoint;
@@ -132,16 +136,21 @@ public class RNTusClientModule extends ReactContextBaseJavaModule {
       this.headers = headers;
 
       client = new TusClient();
-      // client.setUploadCreationURL(new URL(endpoint));
 
+      Uri uri = Uri.parse(fileUrl);
       SharedPreferences pref = reactContext.getSharedPreferences("tus", 0);
-
       client.enableResuming(new TusPreferencesURLStore(pref));
 
-      upload = new TusAndroidUpload(Uri.parse(fileUrl), reactContext);
-      upload.setMetadata(metadata);
+      if (uri.getScheme().equals(ContentResolver.SCHEME_CONTENT)) {
+          Log.d(TAG, "Creating TusAndroidUpload");
+          upload = new TusAndroidUpload(uri, reactContext);
+      } else {
+          Log.d(TAG, "Creating generic TusUpload");
+          URI javaUri = URI.create(fileUrl);
+          upload = new TusUpload(new File(javaUri));
+      }
 
-      Log.d(TAG, "executor created");
+      upload.setMetadata(metadata);
 
       shouldFinish = false;
       isRunning = false;
